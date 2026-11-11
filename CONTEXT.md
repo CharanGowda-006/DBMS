@@ -60,6 +60,15 @@
 - `v_papers_per_year`: `(pub_year, paper_count)`
 - `v_papers_per_topic`: `(t_id, t_name, paper_count)` (includes 0)
 
+## 6. Design Decisions
+- **Similarity Weights**: `w_t = 0.4` (Topic weight), `w_k = 0.6` (Keyword weight). Keywords are more granular and specific indicators of methodology, hence higher weight.
+- **Overlap Bands**:
+  - `score >= 0.6`: "High potential overlap"
+  - `score >= 0.3`: "Moderate potential overlap"
+  - `score < 0.3`: "Low potential overlap"
+- **Wording Standard**: Explicitly phrased as "potential overlap" (not plagiarism or duplicate).
+
+
 ## 6. Verified Facts
 - **Verification Date**: 2026-11-11
 - **Database Engine**: MySQL 8.0.41 (InnoDB)
