@@ -58,3 +58,4 @@ FROM shared s
 JOIN paper_keyword_counts c1 ON s.p1_id = c1.p_id
 JOIN paper_keyword_counts c2 ON s.p2_id = c2.p_id
 WHERE s.shared_count > 0;
+

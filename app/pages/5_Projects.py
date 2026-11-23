@@ -88,3 +88,4 @@ with tab_shared_proj:
             st.dataframe(display_table, use_container_width=True, hide_index=True)
     except Exception as e:
         st.error(db.friendly_error(e))
+

@@ -72,3 +72,4 @@ try:
 
 except Exception as e:
     st.error(db.friendly_error(e))
+

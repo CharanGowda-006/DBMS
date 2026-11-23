@@ -2,123 +2,105 @@ import streamlit as st
 import sys
 from pathlib import Path
 
-# Add app directory to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import db
 
-st.set_page_config(page_title="Unified Academic Search", layout="wide")
-st.title("Unified Academic Search")
+st.set_page_config(page_title="Unified Search", page_icon="🔍", layout="wide")
+st.title("🔍 Unified Academic Search")
+st.caption("Searches publication titles, assigned topics, and keywords simultaneously — then surfaces linked authors, conferences, projects, and datasets.")
 
-st.markdown("""
-Search across publications, researchers, conferences, projects, and datasets.
-Matches terms in publication titles, research topics, and keywords.
-""")
+# ── Search input ──────────────────────────────────────────────────────────────
+col_in, col_btn = st.columns([5, 1])
+with col_in:
+    term = st.text_input("", placeholder="e.g. Deep Learning, CNN, Healthcare, Transformers …",
+                         label_visibility="collapsed")
+with col_btn:
+    st.markdown("<br>", unsafe_allow_html=True)
+    search = st.button("Search 🔎", type="primary", use_container_width=True)
 
-search_term = st.text_input("Enter search keyword, topic, or title", value="Computer Vision", placeholder="e.g. Deep Learning, CNN, Transformers")
-
-if search_term.strip():
+if not term.strip():
+    st.markdown("""
+<div style="background:#f0f6ff;border:1px solid #c5d9f7;border-radius:10px;padding:1.2rem 1.5rem;margin-top:1rem;">
+    <strong>💡 Tips</strong><br>
+    Try searching for a topic ("Computer Vision"), a methodology ("CNN"), a researcher name ("Alice"), 
+    or a conference keyword ("ICML").
+</div>
+""", unsafe_allow_html=True)
+else:
     try:
-        df_results = db.call_proc("sp_search", (search_term.strip(),))
-        
-        if df_results.empty:
-            st.info(f"No results found matching '{search_term}'. Try another term.")
+        df = db.call_proc("sp_search", (term.strip(),))
+
+        if df.empty:
+            st.warning(f"No results found for **'{term}'**. Try a broader keyword.")
         else:
-            st.success(f"Found {len(df_results)} matching records across the network.")
-            
-            # Group by result_type with headers
-            result_types = ["paper", "researcher", "conference", "project", "dataset"]
-            type_icons = {
-                "paper": "📄 Papers",
-                "researcher": "👤 Researchers",
-                "conference": "🏛️ Conferences",
-                "project": "💡 Funded Projects",
-                "dataset": "💾 Datasets"
+            st.success(f"Found **{len(df)} result(s)** matching **'{term}'** across the research network.")
+
+            TYPE_CFG = {
+                "paper":      ("📄", "Papers"),
+                "researcher": ("👤", "Researchers"),
+                "conference": ("🏛️", "Conferences"),
+                "project":    ("💡", "Projects"),
+                "dataset":    ("💾", "Datasets"),
             }
-            
-            for r_type in result_types:
-                subset = df_results[df_results["result_type"] == r_type]
-                if not subset.empty:
-                    st.subheader(type_icons.get(r_type, r_type.title()))
-                    display_df = subset[["ref_id", "label", "detail"]].rename(
-                        columns={"ref_id": "ID", "label": "Title / Name", "detail": "Match Details"}
-                    )
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-            # Paper detail section
-            paper_subset = df_results[df_results["result_type"] == "paper"]
-            if not paper_subset.empty:
+            # ── Grouped results ────────────────────────────────────────────────
+            for rtype, (icon, label) in TYPE_CFG.items():
+                subset = df[df["result_type"] == rtype]
+                if subset.empty:
+                    continue
+                st.markdown(f"### {icon} {label} ({len(subset)})")
+                disp = subset[["ref_id", "label", "detail"]].rename(
+                    columns={"ref_id": "ID", "label": "Name / Title", "detail": "Match Detail"}
+                ).reset_index(drop=True)
+                st.dataframe(disp, use_container_width=True, hide_index=True)
+
+            # ── Paper inspector ────────────────────────────────────────────────
+            paper_rows = df[df["result_type"] == "paper"]
+            if not paper_rows.empty:
                 st.markdown("---")
-                st.subheader("Explore Paper Details")
-                
-                paper_options = {
-                    f"#{row['ref_id']}: {row['label']}": int(row['ref_id'])
-                    for _, row in paper_subset.iterrows()
-                }
-                
-                selected_label = st.selectbox("Select a paper to view complete metadata:", list(paper_options.keys()))
-                selected_p_id = paper_options[selected_label]
-                
-                if selected_p_id:
-                    # Parameterized queries for paper details
-                    df_paper = db.query("SELECT p_title, abstract, pub_year, c_id FROM PAPER WHERE p_id = %s", (selected_p_id,))
-                    df_authors = db.query(
-                        "SELECT a.author_order, r.r_name, r.institution, r.email "
-                        "FROM AUTHORS a JOIN RESEARCHER r ON a.r_id = r.r_id "
-                        "WHERE a.p_id = %s ORDER BY a.author_order",
-                        (selected_p_id,)
-                    )
-                    df_topics = db.query(
-                        "SELECT t.t_name FROM HAS_TOPIC ht JOIN TOPIC t ON ht.t_id = t.t_id "
-                        "WHERE ht.p_id = %s ORDER BY t.t_name",
-                        (selected_p_id,)
-                    )
-                    df_keywords = db.query(
-                        "SELECT k.keyword FROM HAS_KEYWORD hk JOIN KEYWORD k ON hk.key_id = k.key_id "
-                        "WHERE hk.p_id = %s ORDER BY k.keyword",
-                        (selected_p_id,)
-                    )
-                    df_conf = db.query(
-                        "SELECT c.c_name, c.c_year, c.c_location "
-                        "FROM PAPER p JOIN CONFERENCE c ON p.c_id = c.c_id "
-                        "WHERE p.p_id = %s",
-                        (selected_p_id,)
-                    )
+                st.subheader("🔬 Inspect Paper Details")
+                opts = {f"#{r['ref_id']}: {r['label']}": int(r["ref_id"]) for _, r in paper_rows.iterrows()}
+                sel_lbl = st.selectbox("Select a paper to inspect:", list(opts.keys()))
+                pid = opts[sel_lbl]
 
-                    with st.container():
-                        if not df_paper.empty:
-                            p_info = df_paper.iloc[0]
-                            st.markdown(f"### {p_info['p_title']} ({p_info['pub_year']})")
-                            st.markdown(f"**Abstract**: {p_info['abstract']}")
-                            
-                            col_a, col_b = st.columns(2)
-                            with col_a:
-                                st.markdown("**Authors (in order):**")
-                                if not df_authors.empty:
-                                    for _, a_row in df_authors.iterrows():
-                                        st.write(f"{a_row['author_order']}. **{a_row['r_name']}** ({a_row['institution']}) - `{a_row['email']}`")
-                                else:
-                                    st.write("None listed")
-                                    
-                                st.markdown("**Conference:**")
-                                if not df_conf.empty:
-                                    c_info = df_conf.iloc[0]
-                                    st.write(f"🏛️ {c_info['c_name']} ({c_info['c_year']}) - {c_info['c_location']}")
-                                else:
-                                    st.write("Not presented at a recorded conference.")
+                p     = db.query("SELECT p_title, abstract, pub_year, c_id FROM PAPER WHERE p_id = %s", (pid,))
+                auth  = db.query("SELECT a.author_order, r.r_name, r.institution, r.email FROM AUTHORS a JOIN RESEARCHER r ON a.r_id = r.r_id WHERE a.p_id = %s ORDER BY a.author_order", (pid,))
+                tops  = db.query("SELECT t.t_name FROM HAS_TOPIC ht JOIN TOPIC t ON ht.t_id = t.t_id WHERE ht.p_id = %s ORDER BY t.t_name", (pid,))
+                kws   = db.query("SELECT k.keyword FROM HAS_KEYWORD hk JOIN KEYWORD k ON hk.key_id = k.key_id WHERE hk.p_id = %s ORDER BY k.keyword", (pid,))
+                conf  = db.query("SELECT c.c_name, c.c_year, c.c_location FROM PAPER p JOIN CONFERENCE c ON p.c_id = c.c_id WHERE p.p_id = %s", (pid,))
 
-                            with col_b:
-                                st.markdown("**Topics:**")
-                                if not df_topics.empty:
-                                    st.write(", ".join([f"`{t}`" for t in df_topics["t_name"]]))
-                                else:
-                                    st.write("None")
+                if not p.empty:
+                    info = p.iloc[0]
+                    st.markdown(f"""
+<div style="background:#f8faff;border:1px solid #dde6f7;border-radius:10px;padding:1.2rem 1.5rem;margin-bottom:1rem;">
+    <h4 style="margin:0;color:#1a3a6b;">{info['p_title']}</h4>
+    <span style="background:#e0edff;color:#2b5c8f;border-radius:4px;padding:2px 8px;font-size:0.8rem;">
+        📅 Published {info['pub_year']}
+    </span>
+    <p style="margin-top:0.8rem;color:#444;">{info['abstract'] or 'No abstract available.'}</p>
+</div>
+""", unsafe_allow_html=True)
 
-                                st.markdown("**Keywords:**")
-                                if not df_keywords.empty:
-                                    st.write(", ".join([f"`{k}`" for k in df_keywords["keyword"]]))
-                                else:
-                                    st.write("None")
+                    pa, pb = st.columns(2)
+                    with pa:
+                        st.markdown("**✍️ Authors (in order)**")
+                        if not auth.empty:
+                            for _, a in auth.iterrows():
+                                st.write(f"{a['author_order']}. **{a['r_name']}** — {a['institution']} · `{a['email']}`")
+                        st.markdown("**🏛️ Conference**")
+                        if not conf.empty:
+                            ci = conf.iloc[0]
+                            st.info(f"{ci['c_name']} · {ci['c_year']} · {ci['c_location']}")
+                        else:
+                            st.caption("No conference assigned.")
+
+                    with pb:
+                        st.markdown("**🏷️ Topics**")
+                        if not tops.empty:
+                            st.write(" · ".join([f"`{t}`" for t in tops["t_name"]]))
+                        st.markdown("**🔑 Keywords**")
+                        if not kws.empty:
+                            st.write(" · ".join([f"`{k}`" for k in kws["keyword"]]))
+
     except Exception as e:
         st.error(db.friendly_error(e))
-else:
-    st.info("Please enter a term to search across research entities.")

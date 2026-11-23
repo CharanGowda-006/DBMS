@@ -4,6 +4,27 @@ This document lists all database migration, schema definition, view generation, 
 
 ---
 
+## Current Project Layout
+
+- `app/` contains the Streamlit application.
+- `sql/` contains the canonical schema, seed data, verification script, views, and stored procedures used by the dashboard.
+- `basicSQL/` contains the earlier, staged SQL scripts (`RC_*.sql`) for creating and populating the basic relational model.
+- The root-level `schema.sql` and `seed.sql` are byte-for-byte copies of `sql/schema.sql` and `sql/seed.sql`. Use the `sql/` paths below as the single documented source of truth.
+
+For running the dashboard, use the `sql/` pipeline below. Do not mix it with `basicSQL/`: both sets create/populate the same database objects, and applying both can cause duplicate tables, triggers, or indexes.
+
+The `basicSQL/` scripts are intended as an alternative introductory walkthrough. If you use that walkthrough, run them in this order:
+
+1. `basicSQL/RC_schema.sql` — create the database and core entity tables.
+2. `basicSQL/RC_populateDB.sql` — insert entity records.
+3. `basicSQL/RC_relationship.sql` — create relationship tables and self-citation triggers.
+4. `basicSQL/RC_populateRTable.sql` — populate relationship tables.
+5. `basicSQL/RC_indices.sql` — add indexes and inspect foreign-key metadata.
+
+Run the `basicSQL/` scripts in a MySQL client that supports `DELIMITER` directives (such as MySQL Workbench). The helper `run_sql.py` splits input on semicolons and is not suitable for scripts containing trigger or procedure bodies.
+
+---
+
 ## Script Execution Order
 
 | Step | Script File | Purpose | Output Artifacts / Objects Created |
@@ -26,7 +47,7 @@ This document lists all database migration, schema definition, view generation, 
 Defines the complete database DDL, including table definitions (`RESEARCHER`, `CONFERENCE`, `PAPER`, `TOPIC`, `KEYWORD`, `PROJECT`, `DATASET`, `AUTHORS`, `CITES`, `HAS_TOPIC`, `HAS_KEYWORD`, `WORKS_ON`, `USES`), check constraints, composite primary keys, foreign key cascade actions, and before-insert/before-update triggers.
 
 ### 2. `sql/seed.sql`
-Populates all tables with curated academic data representing real-world papers, authors, conferences (e.g. ICML, IEEE CV), topics, keywords, and citation structures.
+Populates all tables with curated academic data representing real-world papers, authors, conferences (e.g. ICML, IEEE CV), topics, keywords, and citation structures. Re-running this dump is not a general-purpose reset operation; apply it to a newly created schema or a database prepared for the seed data.
 
 ### 3. `sql/10_collab.sql`
 Computes researcher pairs who share at least 2 distinct topics across papers they authored.

@@ -44,13 +44,20 @@ def get_connection():
     )
 
 def query(sql: str, params=None) -> pd.DataFrame:
-    """Execute a parameterized SELECT query and return results as a pandas DataFrame."""
+    """Execute a parameterized SELECT query and return results as a pandas DataFrame.
+    Decimal types are automatically coerced to float for Streamlit/PyArrow compatibility."""
+    from decimal import Decimal
     conn = get_connection()
     try:
         cur = conn.cursor(dictionary=True)
         cur.execute(sql, params or ())
         rows = cur.fetchall()
-        return pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+        # Coerce any Decimal columns to float64
+        for col in df.columns:
+            if not df.empty and isinstance(df[col].iloc[0], Decimal):
+                df[col] = df[col].astype(float)
+        return df
     finally:
         conn.close()
 
@@ -66,7 +73,9 @@ def execute(sql: str, params=None):
         conn.close()
 
 def call_proc(name: str, args=None) -> pd.DataFrame:
-    """Execute a stored procedure and return first result set as a pandas DataFrame."""
+    """Execute a stored procedure and return first result set as a pandas DataFrame.
+    Decimal types are automatically coerced to float for Streamlit/PyArrow compatibility."""
+    from decimal import Decimal
     conn = get_connection()
     try:
         cur = conn.cursor(dictionary=True)
@@ -75,7 +84,12 @@ def call_proc(name: str, args=None) -> pd.DataFrame:
         for result in cur.stored_results():
             rows = result.fetchall()
             break
-        return pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+        # Coerce any Decimal columns to float64
+        for col in df.columns:
+            if not df.empty and isinstance(df[col].iloc[0], Decimal):
+                df[col] = df[col].astype(float)
+        return df
     finally:
         conn.close()
 
@@ -94,3 +108,4 @@ def friendly_error(exc: Exception) -> str:
         else:
             return f"Database error occurred (Code {errno}). Please check your input."
     return "An unexpected error occurred. Please try again."
+

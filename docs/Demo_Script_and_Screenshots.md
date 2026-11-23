@@ -65,3 +65,4 @@ Capture screenshots of the following pages and queries for your report document:
 | **8** | Project Team & Shared Resources | `app/pages/5_Projects.py` | Tab 1 with Project #1 team, Tab 2 cross-project sharing |
 | **9** | Self-Citation Error Message | `app/pages/7_Add_Paper.py` (Tab 2) | Selecting Paper #1 as both Citing and Cited, showing friendly error message |
 | **10** | Workbench / SQL Verification | MySQL Workbench | Result of `SELECT * FROM v_paper_similarity LIMIT 5;` |
+

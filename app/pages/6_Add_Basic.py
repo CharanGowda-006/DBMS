@@ -22,6 +22,7 @@ tab_res, tab_conf, tab_top, tab_key, tab_data, tab_proj = st.tabs([
 # 1. RESEARCHER FORM
 with tab_res:
     st.subheader("Add New Researcher")
+    st.caption("Researcher IDs are assigned by MySQL. They are stable identifiers and may have gaps; they are not row numbers.")
     with st.form("form_researcher", clear_on_submit=True):
         r_name = st.text_input("Researcher Name *").strip()
         r_email = st.text_input("Email Address *").strip()
@@ -38,11 +39,11 @@ with tab_res:
                 st.error("Please enter a valid email address (e.g. name@domain.com).")
             else:
                 try:
-                    db.execute(
+                    researcher_id = db.execute(
                         "INSERT INTO RESEARCHER (r_name, email, institution) VALUES (%s, %s, %s)",
                         (r_name, r_email, r_inst or None)
                     )
-                    st.success(f"Researcher '{r_name}' added successfully!")
+                    st.success(f"Researcher '{r_name}' added successfully with ID {researcher_id}.")
                 except Exception as e:
                     st.error(db.friendly_error(e))
 

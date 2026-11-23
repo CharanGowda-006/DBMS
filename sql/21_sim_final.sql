@@ -48,3 +48,4 @@ JOIN PAPER p2 ON pairs.p2_id = p2.p_id
 LEFT JOIN v_paper_topic_sim ts ON pairs.p1_id = ts.p1_id AND pairs.p2_id = ts.p2_id
 LEFT JOIN v_paper_keyword_sim ks ON pairs.p1_id = ks.p1_id AND pairs.p2_id = ks.p2_id
 ORDER BY similarity_score DESC, pairs.p1_id, pairs.p2_id;
+

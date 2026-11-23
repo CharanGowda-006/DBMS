@@ -112,3 +112,4 @@ FROM TOPIC t
 LEFT JOIN HAS_TOPIC ht ON t.t_id = ht.t_id
 GROUP BY t.t_id, t.t_name
 ORDER BY paper_count DESC, t.t_name;
+

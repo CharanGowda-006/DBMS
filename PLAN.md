@@ -15,7 +15,7 @@ How to use: one phase = one fresh agent chat. Paste ONLY that phase's brief (sec
 | # | Phase | Output | Needs |
 |---|---|---|---|
 | P0 | You: confirm requirements | none | none |
-| P1 | Verify DB + fill CONTEXT | `sql/00_verify.sql`, `schema.sql`, `seed.sql` | P0 |
+| P1 | Verify DB + fill CONTEXT | `sql/00_verify.sql`, `sql/schema.sql`, `sql/seed.sql` | P0 |
 | P2 | Collaboration view | `sql/10_collab.sql` | P1 |
 | P3 | Similarity building blocks | `sql/20_sim_parts.sql` | P1 |
 | P4 | Combined similarity | `sql/21_sim_final.sql` | P3 |
@@ -35,4 +35,3 @@ How to use: one phase = one fresh agent chat. Paste ONLY that phase's brief (sec
 
 ## 3. Phase Briefs
 See details in individual phase executions.
-

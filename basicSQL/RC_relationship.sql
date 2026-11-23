@@ -25,6 +25,7 @@ CREATE TABLE AUTHORS (
 
 -- CITES: Paper <-> Paper (Recursive Many-to-Many)
 CREATE TABLE CITES (
+
     citing_p_id INT,
     cited_p_id INT,
 
@@ -42,6 +43,35 @@ CREATE TABLE CITES (
 
     -- CHECK (citing_p_id <> cited_p_id)
 ) ENGINE=InnoDB;
+
+DELIMITER //
+
+CREATE TRIGGER prevent_self_citation
+BEFORE INSERT ON CITES
+FOR EACH ROW
+BEGIN
+    IF NEW.citing_p_id = NEW.cited_p_id THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A paper cannot cite itself';
+    END IF;
+END //
+
+DELIMITER ;
+
+DELIMITER //
+
+CREATE TRIGGER prevent_self_citation_update
+BEFORE UPDATE ON CITES
+FOR EACH ROW
+BEGIN
+    IF NEW.citing_p_id = NEW.cited_p_id THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'A paper cannot cite itself';
+    END IF;
+END //
+
+DELIMITER ;
+
 
 
 -- HAS_TOPIC: Paper <-> Topic (Many-to-Many)

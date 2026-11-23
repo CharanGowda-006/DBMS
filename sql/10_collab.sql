@@ -40,3 +40,4 @@ LEFT JOIN coauthors ca ON rt1.r_id = ca.r1_id AND rt2.r_id = ca.r2_id
 GROUP BY r1.r_id, r1.r_name, r2.r_id, r2.r_name, ca.r1_id
 HAVING shared_topic_count >= 2
 ORDER BY shared_topic_count DESC, r1.r_id, r2.r_id;
+

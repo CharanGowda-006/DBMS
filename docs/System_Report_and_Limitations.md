@@ -31,3 +31,4 @@ The core principle governing this system is **Database-Centric Computation**. Ra
 
 ### 5. Authentication & Access Control
 - **Scope**: Designed as an open academic discovery dashboard. User authentication, login workflows, and fine-grained role-based permissions (RBAC) are excluded from the current educational PBL scope.
+

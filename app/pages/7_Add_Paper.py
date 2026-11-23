@@ -248,3 +248,4 @@ with tab_uses:
         )
     except Exception as e:
         st.error(db.friendly_error(e))
+

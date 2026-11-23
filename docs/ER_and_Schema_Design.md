@@ -137,3 +137,4 @@ Complex academic networks cannot be modeled via simple foreign keys; five juncti
 - Self-referencing many-to-many relationship where both foreign keys target `PAPER(p_id)`.
 - Foreign key deletion cascades (`ON DELETE CASCADE`) to prevent dangling citation links.
 - Cycle safety and self-citation guard enforced via database triggers.
+
