@@ -20,3 +20,30 @@
 | **Delete conference: ON DELETE SET NULL** | Delete conference 1 in transaction | Paper 1 c_id becomes NULL, 'No conference' row appears | Paper 1 c_id: None, No conf count: 2 | **PASS** |
 | **Delete researcher: CASCADE** | Delete researcher 4 in transaction | Junction rows in WORKS_ON and AUTHORS cascade | Works_on before: 1, after: 0, Authors after: 0 | **PASS** |
 | **Delete paper: CASCADE** | Delete paper 1 in transaction | Junction rows cascade across all 4 tables | Authors: 0, Topics: 0, Keywords: 0, Cites: 0 | **PASS** |
+
+## Authentication, Workflow, and Project Management Unit Tests
+
+| Validation | Result |
+|---|---|
+| Command | `python -m unittest discover -s tests -v` |
+| Outcome | **71 passed** using mocked database connections and Streamlit AppTest |
+| Covered | Authentication, role authorization, project ownership, duplicate project names, project detail updates, researcher/dataset assignment and removal, atomic new-resource registration, duplicate relationships, audit events, paper workflows, approved-only SQL visibility, citation and collaboration graph construction, Insights filtering/comparison, and citation/Insights page rendering |
+| Python syntax | `python -m compileall -q app tests` — **PASS** |
+| Streamlit startup | Projects `AppTest` rendered Explore and role-specific management for student, teacher, and admin; Add Paper and My Submissions smoke tests also passed — **PASS** |
+| MySQL integration | **Not run**: no database migrations or writes were attempted. Apply the additive migration and verify against a dedicated test database before production use. |
+
+## Research Network Insights
+
+| Validation | Result |
+|---|---|
+| Insights unit and page tests | **9 passed**: researcher-specific pair filtering, ranking, duplicate-edge prevention, graph selection/legend, similarity pair orientation and deduplication, score preservation, filter-aware counts, topic/keyword set comparison, and Streamlit page interaction |
+| Analytics visibility | Researcher list, collaboration pairs, similarity pairs, and comparison details are queried from approved-only SQL views or explicitly status-filtered parameterized queries. Read-only results use a 30-second Streamlit cache. |
+| MySQL integration | **Not run**: verification used mocked database reads; no database writes or migrations were performed. |
+
+## Citation Network Explorer
+
+| Validation | Result |
+|---|---|
+| Graph and page tests | **11 passed**: forward/reverse edge direction, deduplication, multiple paths, real-edge filtering, unapproved-path filtering, isolated root, graph cap, depth validation, approved-only selector, rendered graph, and empty state |
+| Approved-only visibility | Root, graph edges, publication metadata, authors, topics, and keywords are queried with approved-status filters — **PASS in mocked page tests; MySQL integration not run** |
+| MySQL integration | **Not run**: citation queries were not executed against the working database. |

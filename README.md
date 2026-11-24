@@ -1,6 +1,6 @@
 # Research Collaboration Network
 
-An academic research collaboration and discovery dashboard built with **MySQL 8**, **Python 3.11**, **Streamlit**, and **pandas**. The application manages researchers, publications, conferences, topics, keywords, projects, datasets, authorship, citations, and cross-project relationships.
+An academic research collaboration and discovery portal built with **MySQL 8**, **Python 3.11+**, **Streamlit**, and **pandas**. It includes student, teacher, and administrator accounts with a teacher-submission and administrator-approval workflow.
 
 Core analytics run in MySQL through views and stored procedures, keeping the Streamlit frontend focused on presentation and interaction.
 
@@ -9,16 +9,28 @@ Core analytics run in MySQL through views and stored procedures, keeping the Str
 - **Live database overview** with entity and relationship-table counts
 - **Publication analytics** by year, conference, and research topic
 - **Unified search** across papers, researchers, conferences, projects, and datasets
-- **Collaboration discovery** for researcher pairs sharing at least two topics
-- **Publication similarity** using a weighted Jaccard score:
+- **Collaborator Discovery** with researcher-focused recommendations and an interactive collaboration network
+- **Publication similarity** with paper comparison, overlap explanations, and weighted Jaccard scores:
   - 40% topic similarity
   - 60% keyword similarity
 - **Citation traversal** in forward and reverse directions using a cycle-safe recursive CTE
 - **Project analytics** for project teams, datasets, and shared resources
+- **Project exploration and management** with owner-scoped team/dataset updates and detailed shared-resource collaboration
 - **Validated data-entry forms** for core entities, papers, citations, project assignments, and dataset links
+- **Dynamic paper submission** that combines existing and new researchers, topics, and keywords without leaving Add Paper
 - **Atomic paper registration** that rolls back all related inserts if one step fails
+- **Argon2id password hashing**, database-backed login, expiring sessions, and role-based navigation
+- **Teacher-owned submissions** with edit/resubmit controls and administrator review history
+- **Approved-only publication discovery** across search, citations, collaboration, similarity, and public analytics
+- **Audit logging** for account, publication, project, and review changes
 
 Similarity and overlap values represent **potential topical overlap**, not plagiarism or duplicate detection.
+
+## Project Explorer and Management
+
+The Projects page separates read-only **Explore Projects**, role-gated **Manage Projects**, and **Cross-Project Collaboration**. All signed-in users can browse project descriptions, team members, datasets, and SQL-derived resource-sharing details. Teachers can manage only their owned projects; administrators can manage every project, including legacy projects without an owner record.
+
+Project managers can update details, assign or register researchers, link or register datasets, and remove only the relevant project relationships. Resource creation, association changes, ownership checks, and audit events are handled by transactional workflow services. No additional schema migration is required for these project page enhancements.
 
 ## Technology Stack
 
@@ -29,10 +41,11 @@ Similarity and overlap values represent **potential topical overlap**, not plagi
 | Backend language | Python 3.11 |
 | MySQL driver | `mysql-connector-python` |
 | Data handling | pandas |
+| Password hashing | Argon2id (`argon2-cffi`) |
 
 ## Database Model
 
-The system uses 13 tables:
+The research network retains its original 13 tables:
 
 ### Core entities
 
@@ -55,12 +68,17 @@ The system uses 13 tables:
 
 The schema enforces primary keys, foreign keys, unique constraints, cascade actions, and positive-value checks. Before-insert and before-update triggers prevent a paper from citing itself. See [ER_and_Schema_Design.md](docs/ER_and_Schema_Design.md) for the complete relationship model.
 
+Additive migrations add `APP_USER`, `PAPER_OWNERSHIP`, `PROJECT_OWNERSHIP`, `PAPER_WORKFLOW`, `PUBLICATION_REVIEW`, and `AUDIT_LOG`. A paper with no `PAPER_WORKFLOW` row is a legacy publication and remains approved.
+
 ## Project Structure
 
 ```text
 app/
-  Home.py                 # Application entry page
+  Home.py                 # Role-aware navigation entry point
+  auth.py                 # Authentication and role checks
   db.py                   # MySQL connection and query helpers
+  workflow.py             # Authorized transactional write services
+  bootstrap_admin.py      # One-time administrator bootstrap
   pages/                  # Streamlit feature pages
 sql/
   00_verify.sql           # Database verification
@@ -70,6 +88,9 @@ sql/
   30_citations.sql        # Citation traversal stored procedure
   40_search.sql           # Unified search stored procedure
   50_projects_analytics.sql
+  60_auth_rbac.sql        # Additive authentication/workflow tables
+  61_visibility_views.sql # Approved-only discovery SQL
+  62_researcher_email_unique.sql # Concurrent-safe normalized researcher emails
   schema.sql
   seed.sql
 basicSQL/                 # Alternative introductory SQL walkthrough
@@ -108,7 +129,7 @@ run_sql.py
    pip install -r requirements.txt
    ```
 
-4. Create the local environment file:
+4. Create the local environment file if it does not already exist:
 
    ```powershell
    Copy-Item .env.example .env
@@ -128,7 +149,7 @@ run_sql.py
 
 ## Database Setup
 
-For the dashboard, run the canonical scripts in the following order. Use MySQL Workbench or the MySQL command-line client.
+For a **new database**, run the canonical scripts in the following order. Use MySQL Workbench or the MySQL command-line client.
 
 | Order | Script | Creates |
 |---:|---|---|
@@ -141,6 +162,9 @@ For the dashboard, run the canonical scripts in the following order. Use MySQL W
 | 7 | `sql/30_citations.sql` | `sp_citations` |
 | 8 | `sql/40_search.sql` | `sp_search` |
 | 9 | `sql/50_projects_analytics.sql` | Project and publication analytics views |
+| 10 | `sql/60_auth_rbac.sql` | Additive accounts, ownership, reviews, and audit tables |
+| 11 | `sql/61_visibility_views.sql` | Approved-only views and procedures |
+| 12 | `sql/62_researcher_email_unique.sql` | Case-insensitive normalized researcher email uniqueness |
 
 The root-level `schema.sql` and `seed.sql` are copies of the canonical files under `sql/`. Prefer the `sql/` scripts documented above.
 
@@ -157,16 +181,39 @@ mysql -u root -p -e "SOURCE sql/21_sim_final.sql"
 mysql -u root -p -e "SOURCE sql/30_citations.sql"
 mysql -u root -p -e "SOURCE sql/40_search.sql"
 mysql -u root -p -e "SOURCE sql/50_projects_analytics.sql"
+mysql -u root -p -e "SOURCE sql/60_auth_rbac.sql"
+mysql -u root -p -e "SOURCE sql/61_visibility_views.sql"
+mysql -u root -p -e "SOURCE sql/62_researcher_email_unique.sql"
 ```
 
 Run `sql/00_verify.sql` in MySQL Workbench or MySQL CLI after setup.
+
+### Upgrade an existing database
+
+Back up the database first. For an existing installation, **do not rerun `schema.sql` or `seed.sql`**. Apply the additive migrations in order; the legacy papers and the original 13 tables are preserved. Before the final migration, check for normalized duplicate researcher emails and resolve any matches manually:
+
+```powershell
+mysql -u root -p -e "SOURCE sql/60_auth_rbac.sql"
+mysql -u root -p -e "SOURCE sql/61_visibility_views.sql"
+mysql -u root -p -e "SOURCE sql/62_researcher_email_unique.sql"
+```
+
+The first migration uses `CREATE TABLE IF NOT EXISTS`, the second replaces public discovery views and procedures, and the third adds a unique normalized-email index. These migrations do not delete publication records.
+
+After migrations and `.env` configuration, create the first administrator from an interactive PowerShell terminal. Password input is hidden and no default account or password is seeded:
+
+```powershell
+python -m app.bootstrap_admin
+```
+
+Bootstrap is guarded by a MySQL named lock and refuses to create another administrator once one exists. Afterward, use **User Management** to promote student accounts to teachers.
 
 ## Run the Dashboard
 
 From the repository root:
 
 ```powershell
-streamlit run app/Home.py
+python -m streamlit run app/Home.py
 ```
 
 Streamlit normally opens the application at `http://localhost:8501`.
@@ -176,10 +223,16 @@ Streamlit normally opens the application at `http://localhost:8501`.
 1. **Overview**: KPIs and analytics charts
 2. **Search**: cross-entity search and detailed paper inspection
 3. **Insights**: potential collaborators and publication similarity
-4. **Citations**: forward and reverse citation traversal
+4. **Citations**: interactive, approved-only forward and reverse citation graph with traversal analytics and paper details
 5. **Projects**: project teams, datasets, and shared resources
 6. **Add Basic**: register core entities
-7. **Add Paper**: register linked papers and citations with constraint handling
+7. **Add Paper**: teacher submissions and eligible citation management
+8. **My Submissions**: edit pending/rejected papers and resubmit
+9. **Administration**: review/archive publications, manage accounts, and inspect audit logs (admins only)
+
+Public registration creates **STUDENT** accounts only. Administrators assign teacher roles through User Management. Teachers' papers are pending until an administrator approves them; rejected papers require remarks and can be edited and resubmitted. Existing legacy papers without workflow rows remain approved.
+
+See [Auth and Approval Guide](docs/Auth_and_Approval_Guide.md) for the permission matrix and complete demonstration flow.
 
 ## SQL Features
 
@@ -230,7 +283,13 @@ The canonical seed contains 99 rows across the 13 tables. It includes:
 
 ## Verification
 
-Run the verification script and inspect [tests/test_log.md](tests/test_log.md). The test matrix covers table counts, search behavior, similarity filtering, citation traversal, duplicate constraints, foreign keys, delete cascade actions, and self-citation rejection.
+Run the unit tests and inspect [tests/test_log.md](tests/test_log.md):
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+The original database verification matrix covers table counts, search, similarity, citations, constraints, and self-citation prevention. Workflow unit tests use mocked database connections; run the SQL verification scripts against a separately configured test database for MySQL-specific integration checks.
 
 Self-citation rejection should return SQLSTATE `45000` with:
 
@@ -254,11 +313,12 @@ It splits scripts on semicolons and is not suitable for procedures or triggers t
 - [SQL Execution Guide](docs/SQL_Execution_Guide.md)
 - [System Report and Limitations](docs/System_Report_and_Limitations.md)
 - [Demo Script and Screenshot Guide](docs/Demo_Script_and_Screenshots.md)
+- [Authentication and Approval Guide](docs/Auth_and_Approval_Guide.md)
 - [Verification Log](tests/test_log.md)
 
 ## Limitations
 
 - Jaccard similarity is lexical/set-based and does not detect semantic equivalence.
-- The open dashboard does not implement authentication or role-based access control.
 - Seed-data results are intended for a PBL demonstration rather than production-scale analytics.
 - Recursive traversal performance should be considered when expanding beyond the small demonstration dataset.
+- Production deployment should use a least-privilege MySQL account, TLS, backups, and a managed secrets store.

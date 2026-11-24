@@ -1,11 +1,14 @@
+import html
 import streamlit as st
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import db
+import auth
 
-st.set_page_config(page_title="Unified Search", page_icon="🔍", layout="wide")
+auth.require_login()
+
 st.title("🔍 Unified Academic Search")
 st.caption("Searches publication titles, assigned topics, and keywords simultaneously — then surfaces linked authors, conferences, projects, and datasets.")
 
@@ -63,21 +66,59 @@ else:
                 sel_lbl = st.selectbox("Select a paper to inspect:", list(opts.keys()))
                 pid = opts[sel_lbl]
 
-                p     = db.query("SELECT p_title, abstract, pub_year, c_id FROM PAPER WHERE p_id = %s", (pid,))
-                auth  = db.query("SELECT a.author_order, r.r_name, r.institution, r.email FROM AUTHORS a JOIN RESEARCHER r ON a.r_id = r.r_id WHERE a.p_id = %s ORDER BY a.author_order", (pid,))
-                tops  = db.query("SELECT t.t_name FROM HAS_TOPIC ht JOIN TOPIC t ON ht.t_id = t.t_id WHERE ht.p_id = %s ORDER BY t.t_name", (pid,))
-                kws   = db.query("SELECT k.keyword FROM HAS_KEYWORD hk JOIN KEYWORD k ON hk.key_id = k.key_id WHERE hk.p_id = %s ORDER BY k.keyword", (pid,))
-                conf  = db.query("SELECT c.c_name, c.c_year, c.c_location FROM PAPER p JOIN CONFERENCE c ON p.c_id = c.c_id WHERE p.p_id = %s", (pid,))
+                p = db.query(
+                    """SELECT p.p_title, p.abstract, p.pub_year, p.c_id FROM PAPER p
+                       LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                       WHERE p.p_id = %s AND COALESCE(w.status, 'APPROVED') = 'APPROVED'""",
+                    (pid,),
+                )
+                auth = db.query(
+                    """SELECT a.author_order, r.r_name, r.institution, r.email
+                       FROM AUTHORS a JOIN RESEARCHER r ON a.r_id = r.r_id
+                       JOIN PAPER p ON p.p_id = a.p_id
+                       LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                       WHERE a.p_id = %s AND COALESCE(w.status, 'APPROVED') = 'APPROVED'
+                       ORDER BY a.author_order""",
+                    (pid,),
+                )
+                tops = db.query(
+                    """SELECT t.t_name FROM HAS_TOPIC ht JOIN TOPIC t ON ht.t_id = t.t_id
+                       JOIN PAPER p ON p.p_id = ht.p_id
+                       LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                       WHERE ht.p_id = %s AND COALESCE(w.status, 'APPROVED') = 'APPROVED'
+                       ORDER BY t.t_name""",
+                    (pid,),
+                )
+                kws = db.query(
+                    """SELECT k.keyword FROM HAS_KEYWORD hk JOIN KEYWORD k ON hk.key_id = k.key_id
+                       JOIN PAPER p ON p.p_id = hk.p_id
+                       LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                       WHERE hk.p_id = %s AND COALESCE(w.status, 'APPROVED') = 'APPROVED'
+                       ORDER BY k.keyword""",
+                    (pid,),
+                )
+                conf = db.query(
+                    """SELECT c.c_name, c.c_year, c.c_location FROM PAPER p
+                       JOIN CONFERENCE c ON p.c_id = c.c_id
+                       LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                       WHERE p.p_id = %s AND COALESCE(w.status, 'APPROVED') = 'APPROVED'""",
+                    (pid,),
+                )
 
                 if not p.empty:
                     info = p.iloc[0]
+                    title_html = html.escape(str(info["p_title"]))
+                    abstract_value = info["abstract"]
+                    abstract_html = html.escape(
+                        abstract_value if isinstance(abstract_value, str) else ""
+                    )
                     st.markdown(f"""
 <div style="background:#f8faff;border:1px solid #dde6f7;border-radius:10px;padding:1.2rem 1.5rem;margin-bottom:1rem;">
-    <h4 style="margin:0;color:#1a3a6b;">{info['p_title']}</h4>
+    <h4 style="margin:0;color:#1a3a6b;">{title_html}</h4>
     <span style="background:#e0edff;color:#2b5c8f;border-radius:4px;padding:2px 8px;font-size:0.8rem;">
         📅 Published {info['pub_year']}
     </span>
-    <p style="margin-top:0.8rem;color:#444;">{info['abstract'] or 'No abstract available.'}</p>
+    <p style="margin-top:0.8rem;color:#444;">{abstract_html or 'No abstract available.'}</p>
 </div>
 """, unsafe_allow_html=True)
 

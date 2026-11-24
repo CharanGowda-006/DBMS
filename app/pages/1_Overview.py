@@ -4,8 +4,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import db
+import auth
 
-st.set_page_config(page_title="Overview & Analytics", page_icon="📊", layout="wide")
+auth.require_login()
+
 st.title("📊 Research Overview & Analytics")
 
 try:

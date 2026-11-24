@@ -43,6 +43,21 @@ def get_connection():
         autocommit=True
     )
 
+def transaction(operation):
+    """Run a database operation atomically and return its result."""
+    conn = get_connection()
+    try:
+        conn.start_transaction()
+        cur = conn.cursor(dictionary=True)
+        result = operation(cur)
+        conn.commit()
+        return result
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 def query(sql: str, params=None) -> pd.DataFrame:
     """Execute a parameterized SELECT query and return results as a pandas DataFrame.
     Decimal types are automatically coerced to float for Streamlit/PyArrow compatibility."""
@@ -96,6 +111,8 @@ def call_proc(name: str, args=None) -> pd.DataFrame:
 def friendly_error(exc: Exception) -> str:
     """Map database errors to user-friendly messages without leaking tracebacks."""
     logger.error("Database operation failed: %s", exc)
+    if isinstance(exc, (ValueError, PermissionError)):
+        return str(exc)
     if isinstance(exc, mysql.connector.Error):
         errno = exc.errno
         msg = str(exc.msg) if hasattr(exc, "msg") else str(exc)
@@ -108,4 +125,3 @@ def friendly_error(exc: Exception) -> str:
         else:
             return f"Database error occurred (Code {errno}). Please check your input."
     return "An unexpected error occurred. Please try again."
-
