@@ -81,6 +81,7 @@ app/
   auth.py                 # Authentication and role checks
   db.py                   # MySQL connection and query helpers
   workflow.py             # Authorized transactional write services
+  paper_ingestion/        # Local PDF parsing, matching, and private upload storage
   bootstrap_admin.py      # One-time administrator bootstrap
   pages/                  # Streamlit feature pages
 sql/
@@ -94,6 +95,7 @@ sql/
   60_auth_rbac.sql        # Additive authentication/workflow tables
   61_visibility_views.sql # Approved-only discovery SQL
   62_researcher_email_unique.sql # Concurrent-safe normalized researcher emails
+  63_paper_ingestion.sql  # Additive Smart Paper Import metadata and PDF association
   schema.sql
   seed.sql
 basicSQL/                 # Alternative introductory SQL walkthrough
@@ -168,6 +170,7 @@ For a **new database**, run the canonical scripts in the following order. Use My
 | 10 | `sql/60_auth_rbac.sql` | Additive accounts, ownership, reviews, and audit tables |
 | 11 | `sql/61_visibility_views.sql` | Approved-only views and procedures |
 | 12 | `sql/62_researcher_email_unique.sql` | Case-insensitive normalized researcher email uniqueness |
+| 13 | `sql/63_paper_ingestion.sql` | Additive private PDF metadata association |
 
 The root-level `schema.sql` and `seed.sql` are copies of the canonical files under `sql/`. Prefer the `sql/` scripts documented above.
 
@@ -187,6 +190,7 @@ mysql -u root -p -e "SOURCE sql/50_projects_analytics.sql"
 mysql -u root -p -e "SOURCE sql/60_auth_rbac.sql"
 mysql -u root -p -e "SOURCE sql/61_visibility_views.sql"
 mysql -u root -p -e "SOURCE sql/62_researcher_email_unique.sql"
+mysql -u root -p -e "SOURCE sql/63_paper_ingestion.sql"
 ```
 
 Run `sql/00_verify.sql` in MySQL Workbench or MySQL CLI after setup.
@@ -199,9 +203,10 @@ Back up the database first. For an existing installation, **do not rerun `schema
 mysql -u root -p -e "SOURCE sql/60_auth_rbac.sql"
 mysql -u root -p -e "SOURCE sql/61_visibility_views.sql"
 mysql -u root -p -e "SOURCE sql/62_researcher_email_unique.sql"
+mysql -u root -p -e "SOURCE sql/63_paper_ingestion.sql"
 ```
 
-The first migration uses `CREATE TABLE IF NOT EXISTS`, the second replaces public discovery views and procedures, and the third adds a unique normalized-email index. These migrations do not delete publication records.
+The first migration uses `CREATE TABLE IF NOT EXISTS`, the second replaces public discovery views and procedures, the third adds a unique normalized-email index, and the fourth creates the Smart Paper Import metadata table. These migrations do not delete publication records.
 
 After migrations and `.env` configuration, create the first administrator from an interactive PowerShell terminal. Password input is hidden and no default account or password is seeded:
 
@@ -230,7 +235,7 @@ Streamlit normally opens the application at `http://localhost:8501`.
 5. **Citations**: interactive, approved-only forward and reverse citation graph with traversal analytics and paper details
 6. **Projects**: project teams, datasets, and shared resources
 7. **Add Basic**: register core entities
-8. **Add Paper**: guided teacher submissions and eligible citation management
+8. **Add Paper**: Smart Paper Import, editable metadata review, reference matching, and eligible citation management
 9. **My Submissions**: edit pending/rejected papers and resubmit
 10. **Administration**: review/archive publications, manage accounts, and inspect audit logs (admins only)
 
@@ -239,6 +244,8 @@ Login and registration are available before authentication; signed-in users can 
 Public registration creates **STUDENT** accounts only. Administrators assign teacher roles through User Management. Teachers' papers are pending until an administrator approves them; rejected papers require remarks and can be edited and resubmitted. Existing legacy papers without workflow rows remain approved.
 
 See [Auth and Approval Guide](docs/Auth_and_Approval_Guide.md) for the permission matrix and complete demonstration flow.
+
+See [Smart Paper Import](docs/Smart_Paper_Import.md) for PDF support, setup, data handling, limitations, and evaluation methodology.
 
 ## SQL Features
 

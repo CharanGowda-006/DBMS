@@ -4,6 +4,10 @@ import re
 import auth
 import db
 import mysql.connector
+from paper_ingestion import storage as paper_storage
+from paper_ingestion.entity_matcher import normalize_name
+from paper_ingestion.pdf_parser import PARSER_VERSION, validate_pdf
+from paper_ingestion.reference_parser import normalize_doi
 
 READ_ROLES = {"STUDENT", "TEACHER", "ADMIN"}
 EDITOR_ROLES = {"TEACHER", "ADMIN"}
@@ -150,7 +154,18 @@ def _resolve_entries(cur, entries, resolver, actor_id):
     return resolved
 
 
-def submit_paper(title, abstract, pub_year, conference_id, author_ids, topic_ids, keyword_ids):
+def submit_paper(
+    title,
+    abstract,
+    pub_year,
+    conference_id,
+    author_ids,
+    topic_ids,
+    keyword_ids,
+    *,
+    ingestion=None,
+    confirmed_citations=(),
+):
     title = (title or "").strip()
     if not title or len(title) > 500:
         raise ValueError("Paper title must contain 1 to 500 characters.")
@@ -159,12 +174,63 @@ def submit_paper(title, abstract, pub_year, conference_id, author_ids, topic_ids
     author_ids = list(author_ids)
     topic_ids = list(topic_ids)
     keyword_ids = list(keyword_ids)
+    confirmed_citations = list(dict.fromkeys(int(item) for item in confirmed_citations))
     if not author_ids or not topic_ids or not keyword_ids:
         raise ValueError("Select at least one author, topic, and keyword.")
+    if ingestion is not None:
+        if not isinstance(ingestion, dict):
+            raise ValueError("Reviewed PDF metadata is invalid.")
+        filename = ingestion.get("filename")
+        content = ingestion.get("content")
+        metadata = ingestion.get("metadata")
+        if not isinstance(metadata, dict) or not isinstance(content, bytes):
+            raise ValueError("Upload and review a valid PDF before submitting.")
+        validate_pdf(filename, content)
+        try:
+            json.dumps(metadata)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Reviewed PDF metadata is invalid.") from exc
+
+    saved_upload = {}
 
     def create(cur):
         actor = auth.require_actor(cur, EDITOR_ROLES)
         status = "PENDING" if actor["role"] == "TEACHER" else "APPROVED"
+        if ingestion is not None:
+            cur.execute(
+                """SELECT p.p_id, p.p_title, p.pub_year
+                   FROM PAPER p
+                   WHERE p.pub_year = %s
+                   FOR UPDATE""",
+                (pub_year,),
+            )
+            matching_year = cur.fetchall()
+            normalized_title = normalize_name(title)
+            duplicate = next(
+                (
+                    row for row in matching_year
+                    if normalize_name(row["p_title"]) == normalized_title
+                ),
+                None,
+            )
+            doi = normalize_doi(ingestion["metadata"].get("doi"))
+            if doi:
+                cur.execute(
+                    "SELECT p_id FROM PAPER_INGESTION WHERE doi = %s FOR UPDATE",
+                    (doi,),
+                )
+                doi_match = cur.fetchone()
+                if doi_match:
+                    raise ValueError(
+                        f"This DOI is already linked to publication "
+                        f"#{int(doi_match['p_id'])}."
+                    )
+            if duplicate:
+                raise ValueError(
+                    f"A paper with this title and year already exists "
+                    f"(publication #{int(duplicate['p_id'])})."
+                )
+
         author_ids_resolved = _resolve_entries(
             cur, author_ids, _resolve_researcher, actor["user_id"]
         )
@@ -205,6 +271,58 @@ def submit_paper(title, abstract, pub_year, conference_id, author_ids, topic_ids
                 "INSERT INTO HAS_KEYWORD (p_id, key_id) VALUES (%s, %s)",
                 (paper_id, keyword_id),
             )
+        if ingestion is not None:
+            saved_upload.update(
+                paper_storage.store_pdf(ingestion["filename"], ingestion["content"])
+            )
+            cur.execute(
+                """INSERT INTO PAPER_INGESTION
+                   (p_id, doi, original_filename, storage_key, sha256,
+                    file_size, parser_version, extracted_metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (
+                    paper_id,
+                    normalize_doi(ingestion["metadata"].get("doi")),
+                    saved_upload["original_filename"],
+                    saved_upload["storage_key"],
+                    saved_upload["sha256"],
+                    saved_upload["file_size"],
+                    PARSER_VERSION,
+                    json.dumps(ingestion["metadata"], ensure_ascii=False),
+                ),
+            )
+            _audit(
+                cur,
+                actor["user_id"],
+                "PDF_ATTACHED",
+                "PAPER",
+                paper_id,
+                new_values={
+                    "sha256": saved_upload["sha256"],
+                    "file_size": saved_upload["file_size"],
+                    "parser_version": PARSER_VERSION,
+                },
+            )
+        for cited_paper_id in confirmed_citations:
+            if cited_paper_id == paper_id:
+                raise ValueError("A paper cannot cite itself.")
+            cur.execute(
+                """SELECT p.p_id
+                   FROM PAPER p LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+                   WHERE p.p_id = %s
+                     AND COALESCE(w.status, 'APPROVED') = 'APPROVED'
+                   FOR UPDATE""",
+                (cited_paper_id,),
+            )
+            if cur.fetchone() is None:
+                raise ValueError(
+                    "Only an existing approved publication can be a confirmed reference."
+                )
+            cur.execute(
+                """INSERT INTO CITES (citing_p_id, cited_p_id)
+                   VALUES (%s, %s)""",
+                (paper_id, cited_paper_id),
+            )
         cur.execute(
             """INSERT INTO PAPER_OWNERSHIP (p_id, owner_user_id)
                VALUES (%s, %s)""",
@@ -222,11 +340,58 @@ def submit_paper(title, abstract, pub_year, conference_id, author_ids, topic_ids
                 "author_ids": author_ids_resolved,
                 "topic_ids": topic_ids_resolved,
                 "keyword_ids": keyword_ids_resolved,
+                "doi": (
+                    normalize_doi(ingestion["metadata"].get("doi"))
+                    if ingestion is not None else None
+                ),
+                "confirmed_citations": confirmed_citations,
             },
         )
         return paper_id, status
 
-    return db.transaction(create)
+    try:
+        return db.transaction(create)
+    except Exception:
+        if saved_upload.get("storage_key"):
+            paper_storage.delete_pdf(saved_upload["storage_key"])
+        raise
+
+
+def get_paper_ingestion(paper_id):
+    def load(cur):
+        auth.require_actor(cur, {"ADMIN"})
+        cur.execute(
+            """SELECT i.p_id, i.doi, i.original_filename, i.extracted_metadata,
+                      i.file_size, i.sha256, i.parser_version
+               FROM PAPER_INGESTION i WHERE i.p_id = %s""",
+            (int(paper_id),),
+        )
+        return cur.fetchone()
+
+    return db.transaction(load)
+
+
+def download_submission_pdf(paper_id):
+    def load(cur):
+        actor = auth.require_actor(cur, {"TEACHER", "ADMIN"})
+        cur.execute(
+            """SELECT i.storage_key, i.original_filename
+               FROM PAPER_INGESTION i
+               JOIN PAPER_OWNERSHIP o ON o.p_id = i.p_id
+               WHERE i.p_id = %s AND (%s = 'ADMIN' OR o.owner_user_id = %s)
+               FOR UPDATE""",
+            (int(paper_id), actor["role"], int(actor["user_id"])),
+        )
+        result = cur.fetchone()
+        if result is None:
+            raise PermissionError("The uploaded paper is unavailable.")
+        return result
+
+    result = db.transaction(load)
+    if result is None:
+        return None
+    content = paper_storage.read_pdf(result["storage_key"])
+    return content, result["original_filename"]
 
 
 def list_my_submissions():

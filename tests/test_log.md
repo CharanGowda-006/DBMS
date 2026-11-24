@@ -57,3 +57,16 @@
 | Python syntax and patch formatting | `py -3.14 -m compileall -q app tests` and `git diff --check` — **PASS** |
 | Browser validation | Login page loaded locally; the sidebar collapse glyph was visually rendered, and browser inspection confirmed Streamlit's Material Symbols spans retain `Material Symbols Rounded`. The password visibility control toggled successfully. Other pages/expander forms and light-theme rendering were not visually checked. |
 | MySQL integration | **Not run**: database integrations were not performed. |
+
+## Smart Paper Import
+
+| Validation | Result |
+|---|---|
+| Complete Python test suite | `py -3.14 -m unittest discover -s tests -q` — **99 passed** |
+| Python syntax and patch formatting | `py -3.14 -m compileall -q app tests` and `git diff --check` — **PASS** |
+| Upload/review interaction | Streamlit AppTest confirms extracted values can be edited and the flow reaches final review; author removal clears stale widget state — **PASS** |
+| Submission and file access | Mocked transaction tests verify rollback cleanup, duplicate DOI rejection, confirmation-only citation writes, teacher ownership checks, and role denial — **PASS** |
+| Database migration | Additive `PAPER_INGESTION` table and foreign key verified in `research_collaboration_db`; existing rows were not modified. |
+| Extraction regression fixture | Two-page synthetic IEEE-style PDF (591,772 bytes) verifies complete abstract, ordered authors/emails, six keywords, four references, missing year/DOI/venue, and repeated-header handling — **PASS** |
+| Topic classification and UI | Alias mapping, title/keyword fallback without an abstract, existing-topic ID resolution, proposed-topic separation, unchecked creation consent, and Streamlit multiselect preselection — **PASS** |
+| Parser quality limitations | Fixtures are synthetic. No representative scholarly-PDF accuracy benchmark, OCR test, or cross-layout/browser validation was performed. |

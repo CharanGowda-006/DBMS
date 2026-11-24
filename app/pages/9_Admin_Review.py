@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -49,6 +50,43 @@ try:
                 st.write(paper.topics or "None listed")
                 st.markdown("**Keywords**")
                 st.write(paper.keywords or "None listed")
+        ingestion = workflow.get_paper_ingestion(int(selected_id))
+        if ingestion:
+            st.markdown("#### Smart Paper Import Details")
+            st.write(f"**DOI:** {ingestion['doi'] or 'Not provided'}")
+            st.caption(
+                f"Source PDF: {ingestion['original_filename']} · "
+                f"{int(ingestion['file_size']) / (1024 * 1024):.2f} MB"
+            )
+            st.download_button(
+                "Download submitted PDF",
+                data=workflow.download_submission_pdf(int(selected_id))[0],
+                file_name=ingestion["original_filename"],
+                mime="application/pdf",
+                key=f"review_pdf_{int(selected_id)}",
+            )
+            extracted = ingestion["extracted_metadata"]
+            if isinstance(extracted, str):
+                extracted = json.loads(extracted)
+            references = extracted.get("references", []) if isinstance(extracted, dict) else []
+            st.markdown("**Extracted reference review**")
+            if not references:
+                st.caption("No references were extracted.")
+            else:
+                st.dataframe(
+                    [
+                        {
+                            "Reference": item.get("title") or item.get("raw", ""),
+                            "Year": item.get("year"),
+                            "DOI": item.get("doi"),
+                            "Matched Paper ID": item.get("matched_paper_id"),
+                            "Confirmed": bool(item.get("confirmed")),
+                        }
+                        for item in references[:100]
+                    ],
+                    width="stretch",
+                    hide_index=True,
+                )
 
         approve_col, reject_col = st.columns(2)
         with approve_col:
