@@ -95,4 +95,14 @@
 - **Join Verification**:
   - `RESEARCHER-AUTHORS-PAPER` returns 10 authored pairs ordered by `p_id, author_order`.
 
+## 7. Authentication and Publication Workflow
+- Authentication uses `APP_USER` accounts with Argon2id password hashes and STUDENT, TEACHER, or ADMIN roles.
+- Public registration creates STUDENT accounts only; `python -m app.bootstrap_admin` creates the first administrator once.
+- New papers are tracked in `PAPER_WORKFLOW`; missing workflow rows mean legacy APPROVED publications.
+- Valid transitions: PENDING → APPROVED/REJECTED; REJECTED → PENDING on resubmission; APPROVED → ARCHIVED.
+- `PAPER_OWNERSHIP` records explicit submission ownership; legacy papers remain ownerless.
+- `PROJECT_OWNERSHIP`, `PUBLICATION_REVIEW`, and `AUDIT_LOG` track project owners, decisions, and sensitive changes.
+- Migration order for an existing database: `sql/60_auth_rbac.sql`, then `sql/61_visibility_views.sql`. Do not rerun schema or seed scripts during an upgrade.
+- Public search, citations, collaboration, similarity, and paper analytics include APPROVED publications only.
+- App writes run through `app/workflow.py`, which checks the active role/owner inside a transaction and writes audit events atomically.
 

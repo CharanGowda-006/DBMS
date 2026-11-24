@@ -38,6 +38,9 @@ Run the `basicSQL/` scripts in a MySQL client that supports `DELIMITER` directiv
 | **7** | `sql/30_citations.sql` | Recursive CTE citation traversal procedure with cycle guard | `sp_citations(start_p_id, direction, max_depth)` |
 | **8** | `sql/40_search.sql` | Unified cross-entity search procedure | `sp_search(term)` |
 | **9** | `sql/50_projects_analytics.sql` | Analytical aggregation views & project resource sharing views | `v_project_team`, `v_project_datasets`, `v_projects_shared`, `v_papers_per_conference`, `v_papers_per_year`, `v_papers_per_topic` |
+| **10** | `sql/60_auth_rbac.sql` | Additive authentication and approval tables | Accounts, ownership, workflow, reviews, audit |
+| **11** | `sql/61_visibility_views.sql` | Approved-only public discovery objects | Filtered views, `sp_search`, `sp_citations` |
+| **12** | `sql/62_researcher_email_unique.sql` | Concurrent-safe normalized researcher email uniqueness | Functional unique index |
 
 ---
 
@@ -71,3 +74,22 @@ Executes single-term cross-entity search returning standardized `(result_type, r
 
 ### 7. `sql/50_projects_analytics.sql`
 Supplies aggregated metrics for dashboard charting, including publications per conference (handling conferences with 0 papers and unassigned papers), publications per year, and cross-project personnel/dataset sharing.
+
+### 8. `sql/60_auth_rbac.sql`, `sql/61_visibility_views.sql`, and `sql/62_researcher_email_unique.sql`
+These are additive upgrade migrations. Existing databases must not rerun `schema.sql` or `seed.sql`; back up first, then execute:
+
+```powershell
+mysql -u root -p -e "SOURCE sql/60_auth_rbac.sql"
+mysql -u root -p -e "SOURCE sql/61_visibility_views.sql"
+mysql -u root -p -e "SOURCE sql/62_researcher_email_unique.sql"
+```
+
+Before applying the third migration, run its documented duplicate-check query and resolve any normalized duplicate researcher emails manually. It adds a functional unique index only. `PAPER_WORKFLOW` stores new publication states. A paper with no row is a legacy APPROVED paper; no owner is fabricated for legacy records. The second migration filters non-approved records out of public search, citation traversal, collaboration, similarity, and publication analytics.
+
+Create the initial administrator only after these migrations:
+
+```powershell
+python -m app.bootstrap_admin
+```
+
+It prompts for an administrator name, email, and hidden password and cannot create a second administrator.

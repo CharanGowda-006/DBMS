@@ -6,14 +6,13 @@ from pathlib import Path
 # Add app directory to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import db
+import auth
+import workflow
 
-st.set_page_config(page_title="Register Core Entities", layout="wide")
+auth.require_role("ADMIN")
+
 st.title("Data Management: Core Entities")
-
-st.markdown("""
-Register foundational entities into the research collaboration network.
-All submissions undergo strict data validation and database constraint enforcement.
-""")
+st.caption("Register foundational research records. MySQL assigns stable identifiers and enforces constraints.")
 
 tab_res, tab_conf, tab_top, tab_key, tab_data, tab_proj = st.tabs([
     "👤 Researcher", "🏛️ Conference", "🏷️ Topic", "🔑 Keyword", "💾 Dataset", "💡 Project"
@@ -39,9 +38,9 @@ with tab_res:
                 st.error("Please enter a valid email address (e.g. name@domain.com).")
             else:
                 try:
-                    researcher_id = db.execute(
-                        "INSERT INTO RESEARCHER (r_name, email, institution) VALUES (%s, %s, %s)",
-                        (r_name, r_email, r_inst or None)
+                    researcher_id = workflow.admin_create_entity(
+                        "RESEARCHER",
+                        {"r_name": r_name, "email": r_email, "institution": r_inst or None},
                     )
                     st.success(f"Researcher '{r_name}' added successfully with ID {researcher_id}.")
                 except Exception as e:
@@ -50,7 +49,7 @@ with tab_res:
     st.markdown("#### Existing Researchers")
     st.dataframe(
         db.query("SELECT r_id AS ID, r_name AS Name, email AS Email, institution AS Institution FROM RESEARCHER ORDER BY r_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 2. CONFERENCE FORM
@@ -70,9 +69,9 @@ with tab_conf:
             else:
                 c_year = int(c_year_input)
                 try:
-                    db.execute(
-                        "INSERT INTO CONFERENCE (c_name, c_year, c_location) VALUES (%s, %s, %s)",
-                        (c_name, c_year, c_loc or None)
+                    workflow.admin_create_entity(
+                        "CONFERENCE",
+                        {"c_name": c_name, "c_year": c_year, "c_location": c_loc or None},
                     )
                     st.success(f"Conference '{c_name}' ({c_year}) added successfully!")
                 except Exception as e:
@@ -81,7 +80,7 @@ with tab_conf:
     st.markdown("#### Existing Conferences")
     st.dataframe(
         db.query("SELECT c_id AS ID, c_name AS Name, c_year AS Year, c_location AS Location FROM CONFERENCE ORDER BY c_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 3. TOPIC FORM
@@ -96,7 +95,7 @@ with tab_top:
                 st.error("Topic name is required.")
             else:
                 try:
-                    db.execute("INSERT INTO TOPIC (t_name) VALUES (%s)", (t_name,))
+                    workflow.admin_create_entity("TOPIC", {"t_name": t_name})
                     st.success(f"Topic '{t_name}' registered successfully!")
                 except Exception as e:
                     st.error(db.friendly_error(e))
@@ -104,7 +103,7 @@ with tab_top:
     st.markdown("#### Existing Topics")
     st.dataframe(
         db.query("SELECT t_id AS ID, t_name AS Topic FROM TOPIC ORDER BY t_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 4. KEYWORD FORM
@@ -119,7 +118,7 @@ with tab_key:
                 st.error("Keyword text is required.")
             else:
                 try:
-                    db.execute("INSERT INTO KEYWORD (keyword) VALUES (%s)", (k_word,))
+                    workflow.admin_create_entity("KEYWORD", {"keyword": k_word})
                     st.success(f"Keyword '{k_word}' registered successfully!")
                 except Exception as e:
                     st.error(db.friendly_error(e))
@@ -127,7 +126,7 @@ with tab_key:
     st.markdown("#### Existing Keywords")
     st.dataframe(
         db.query("SELECT key_id AS ID, keyword AS Keyword FROM KEYWORD ORDER BY key_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 5. DATASET FORM
@@ -143,7 +142,7 @@ with tab_data:
                 st.error("Both dataset name and source URL/repository are required.")
             else:
                 try:
-                    db.execute("INSERT INTO DATASET (name, source) VALUES (%s, %s)", (d_name, d_source))
+                    workflow.admin_create_entity("DATASET", {"name": d_name, "source": d_source})
                     st.success(f"Dataset '{d_name}' registered successfully!")
                 except Exception as e:
                     st.error(db.friendly_error(e))
@@ -151,7 +150,7 @@ with tab_data:
     st.markdown("#### Existing Datasets")
     st.dataframe(
         db.query("SELECT dataset_id AS ID, name AS Name, source AS Source FROM DATASET ORDER BY dataset_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 6. PROJECT FORM
@@ -167,7 +166,7 @@ with tab_proj:
                 st.error("Project name is required.")
             else:
                 try:
-                    db.execute("INSERT INTO PROJECT (name, description) VALUES (%s, %s)", (p_name, p_desc or None))
+                    workflow.create_project(p_name, p_desc)
                     st.success(f"Project '{p_name}' registered successfully!")
                 except Exception as e:
                     st.error(db.friendly_error(e))
@@ -175,5 +174,5 @@ with tab_proj:
     st.markdown("#### Existing Projects")
     st.dataframe(
         db.query("SELECT project_id AS ID, name AS Name, description AS Description FROM PROJECT ORDER BY project_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )

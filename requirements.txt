@@ -1,4 +1,7 @@
 streamlit
 mysql-connector-python
 pandas
-
+argon2-cffi
+plotly
+pypdf>=6.0,<7
+PyMuPDF>=1.26,<2
