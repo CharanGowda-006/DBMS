@@ -25,8 +25,8 @@
 
 | Validation | Result |
 |---|---|
-| Command | `python -m unittest discover -s tests -v` |
-| Outcome | **71 passed** using mocked database connections and Streamlit AppTest |
+| Command | `python -m unittest discover -s tests -q` |
+| Outcome | **76 passed** using mocked database connections and Streamlit AppTest |
 | Covered | Authentication, role authorization, project ownership, duplicate project names, project detail updates, researcher/dataset assignment and removal, atomic new-resource registration, duplicate relationships, audit events, paper workflows, approved-only SQL visibility, citation and collaboration graph construction, Insights filtering/comparison, and citation/Insights page rendering |
 | Python syntax | `python -m compileall -q app tests` — **PASS** |
 | Streamlit startup | Projects `AppTest` rendered Explore and role-specific management for student, teacher, and admin; Add Paper and My Submissions smoke tests also passed — **PASS** |
@@ -47,3 +47,13 @@
 | Graph and page tests | **11 passed**: forward/reverse edge direction, deduplication, multiple paths, real-edge filtering, unapproved-path filtering, isolated root, graph cap, depth validation, approved-only selector, rendered graph, and empty state |
 | Approved-only visibility | Root, graph edges, publication metadata, authors, topics, and keywords are queried with approved-status filters — **PASS in mocked page tests; MySQL integration not run** |
 | MySQL integration | **Not run**: citation queries were not executed against the working database. |
+
+## Frontend Modernization
+
+| Validation | Result |
+|---|---|
+| Streamlit page smoke tests | **5 passed**: login and registration password visibility preserve entered values; dashboard renders mocked metrics, publications, and role links; Add Paper retains the title when advancing to the author step; shared styling does not apply the application font directly to Streamlit's internal icon elements. |
+| AppTest navigation note | Isolated page tests mock `st.page_link`; production navigation is registered centrally by `app/Home.py`. |
+| Python syntax and patch formatting | `py -3.14 -m compileall -q app tests` and `git diff --check` — **PASS** |
+| Browser validation | Login page loaded locally; the sidebar collapse glyph was visually rendered, and browser inspection confirmed Streamlit's Material Symbols spans retain `Material Symbols Rounded`. The password visibility control toggled successfully. Other pages/expander forms and light-theme rendering were not visually checked. |
+| MySQL integration | **Not run**: database integrations were not performed. |

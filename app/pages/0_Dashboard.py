@@ -1,147 +1,129 @@
-import streamlit as st
 import sys
 from pathlib import Path
 
+import streamlit as st
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import db
 import auth
+import db
+import ui
 
-auth.require_login()
 
-# ── Custom CSS ──────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-/* Global typography */
-html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
+user = auth.require_login()
+role = user["role"]
 
-/* Sidebar nav label */
-[data-testid="stSidebarNav"] .st-emotion-cache-pkbazv { font-size: 0.9rem; }
-
-/* KPI metric cards */
-[data-testid="stMetric"] {
-    background: #f8faff;
-    border: 1px solid #dde6f7;
-    border-radius: 10px;
-    padding: 14px 18px;
+welcome_subtitles = {
+    "STUDENT": "Discover research, explore publications, and find academic collaborations.",
+    "TEACHER": "Manage your research submissions and discover collaboration opportunities.",
+    "ADMIN": "Manage publications, researchers, and research activity.",
 }
-[data-testid="stMetricLabel"] { font-size: 0.75rem; color: #5a6a85; text-transform: uppercase; letter-spacing: 0.05em; }
-[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 700; color: #1a3a6b; }
-
-/* Section headers */
-h2 { color: #1a3a6b; border-bottom: 2px solid #dde6f7; padding-bottom: 6px; margin-top: 1.4rem; }
-h3 { color: #2b5c8f; margin-top: 1rem; }
-
-/* Dataframes */
-[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
-
-/* Buttons */
-[data-testid="baseButton-primary"] { background-color: #2b5c8f !important; }
-
-/* Alert boxes */
-.stAlert { border-radius: 8px; }
-
-/* Sidebar branding strip */
-section[data-testid="stSidebar"] { background: #0d2b55; color: white; }
-section[data-testid="stSidebar"] * { color: #d4e3f7 !important; }
-section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: white !important; }
-section[data-testid="stSidebar"] .st-emotion-cache-pkbazv { color: #90b8e0 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-# ── Sidebar ──────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 🔬 ResearchNet")
-    st.markdown("**Academic Research Collaboration & Discovery Portal**")
-    st.markdown("---")
-    st.markdown("""
-**Navigation**
-- 🏠 Home — this page
-- 📊 Overview — KPIs & analytics
-- 🔍 Search — unified entity search
-- 🧠 Insights — collaboration & similarity
-- 🔗 Citations — citation graph traversal
-- 📁 Projects — teams & datasets
-- ➕ Add Entities — register new data
-- 📄 Add Paper — transactional publish
-""")
-    st.markdown("---")
-    st.caption("MySQL 8.0 · Python 3.11 · Streamlit 1.67")
-
-# ── Hero header ──────────────────────────────────────────────────────────────
-st.markdown("""
-<div style="background: linear-gradient(135deg,#0d2b55,#2b5c8f);
-            padding: 2rem 2.5rem; border-radius: 14px; margin-bottom: 1.5rem; color: white;">
-    <h1 style="margin:0;color:white;font-size:2rem;">
-        Academic Research Collaboration & Discovery Portal
-    </h1>
-    <p style="margin:0.5rem 0 0;opacity:0.85;font-size:0.98rem;">
-        A relational intelligence layer for institutional research networks.
-        Powered by MySQL views, recursive CTEs, stored procedures, and Streamlit.
-    </p>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Live table counts ─────────────────────────────────────────────────────────
-st.subheader("📋 Live Database Snapshot")
-
-ENTITY_TABLES   = ["RESEARCHER","CONFERENCE","PAPER","TOPIC","KEYWORD","PROJECT","DATASET"]
-JUNCTION_TABLES = ["AUTHORS","CITES","HAS_TOPIC","HAS_KEYWORD","WORKS_ON","USES"]
-ALL_TABLES = ENTITY_TABLES + JUNCTION_TABLES
+ui.page_header(f"Welcome back, {user['full_name']}", welcome_subtitles.get(role))
 
 try:
-    q = " UNION ALL ".join(
-        [
-            "SELECT 'PAPER' AS table_name, COUNT(*) AS row_count FROM PAPER p "
-            "LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id "
-            "WHERE COALESCE(w.status, 'APPROVED') = 'APPROVED'"
-            if t == "PAPER"
-            else f"SELECT '{t}' AS table_name, COUNT(*) AS row_count FROM {t}"
-            for t in ALL_TABLES
-        ]
+    counts = db.query(
+        """SELECT 'APPROVED_PUBLICATIONS' AS metric, COUNT(*) AS value
+             FROM PAPER p LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+             WHERE COALESCE(w.status, 'APPROVED') = 'APPROVED'
+           UNION ALL SELECT 'RESEARCHERS', COUNT(*) FROM RESEARCHER
+           UNION ALL SELECT 'PROJECTS', COUNT(*) FROM PROJECT
+           UNION ALL SELECT 'CONFERENCES', COUNT(*) FROM CONFERENCE"""
     )
-    df_counts = db.query(q)
+    metric_values = {
+        row["metric"]: int(row["value"])
+        for _, row in counts.iterrows()
+    }
+    columns = st.columns(4)
+    for column, metric, label in zip(
+        columns,
+        ("APPROVED_PUBLICATIONS", "RESEARCHERS", "PROJECTS", "CONFERENCES"),
+        ("Approved Publications", "Researchers", "Research Projects", "Conferences"),
+    ):
+        column.metric(label, metric_values.get(metric, 0))
 
-    entities = df_counts[df_counts["table_name"].isin(ENTITY_TABLES)].set_index("table_name")
-    junctions = df_counts[df_counts["table_name"].isin(JUNCTION_TABLES)].set_index("table_name")
+    st.subheader("Quick Actions")
+    actions = {
+        "STUDENT": [
+            ("Explore Publications", "pages/2_Search.py"),
+            ("Find Collaborators", "pages/3_Insights.py"),
+            ("Explore Citations", "pages/4_Citations.py"),
+            ("Browse Projects", "pages/5_Projects.py"),
+        ],
+        "TEACHER": [
+            ("Submit Paper", "pages/7_Add_Paper.py"),
+            ("My Submissions", "pages/8_My_Submissions.py"),
+            ("Manage Projects", "pages/5_Projects.py"),
+            ("Find Collaborators", "pages/3_Insights.py"),
+        ],
+        "ADMIN": [
+            ("Review Pending Papers", "pages/9_Admin_Review.py"),
+            ("Manage Users", "pages/10_Admin_Users.py"),
+            ("Manage Entities", "pages/6_Add_Basic.py"),
+            ("View Audit Logs", "pages/11_Admin_Audit.py"),
+        ],
+    }
+    action_cols = st.columns(4)
+    for column, (label, page_path) in zip(action_cols, actions.get(role, [])):
+        with column:
+            st.page_link(page_path, label=label, width="stretch")
 
-    # KPI quick glance
-    cols = st.columns(len(ENTITY_TABLES))
-    icons = ["👤","🏛️","📄","🏷️","🔑","💡","💾"]
-    for col, tbl, icon in zip(cols, ENTITY_TABLES, icons):
-        cnt = int(entities.loc[tbl, "row_count"]) if tbl in entities.index else 0
-        col.metric(f"{icon} {tbl.title()}", cnt)
+    st.subheader("Recent Publications")
+    recent = db.query(
+        """SELECT p.p_id, p.p_title, p.pub_year,
+                  (SELECT GROUP_CONCAT(r.r_name ORDER BY a.author_order SEPARATOR ', ')
+                   FROM AUTHORS a JOIN RESEARCHER r ON r.r_id = a.r_id
+                   WHERE a.p_id = p.p_id) AS authors,
+                  (SELECT GROUP_CONCAT(t.t_name ORDER BY t.t_name SEPARATOR ', ')
+                   FROM HAS_TOPIC ht JOIN TOPIC t ON t.t_id = ht.t_id
+                   WHERE ht.p_id = p.p_id) AS topics
+           FROM PAPER p
+           LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id
+           WHERE COALESCE(w.status, 'APPROVED') = 'APPROVED'
+           ORDER BY p.p_id DESC
+           LIMIT 6"""
+    )
+    if recent.empty:
+        ui.empty_state("No approved publications are available yet.")
+    else:
+        for paper in recent.itertuples():
+            with st.container(border=True):
+                st.markdown(f"**{paper.p_title}**")
+                st.caption(
+                    f"Published {paper.pub_year} · "
+                    f"{paper.authors or 'Authors not listed'}"
+                )
+                if paper.topics:
+                    st.caption(f"Research topics: {paper.topics}")
 
-    st.markdown("#### Junction / Relationship Tables")
-    jcol = st.columns(len(JUNCTION_TABLES))
-    j_icons = ["✍️","🔗","🏷️","🔑","👥","💾"]
-    for col, tbl, icon in zip(jcol, JUNCTION_TABLES, j_icons):
-        cnt = int(junctions.loc[tbl, "row_count"]) if tbl in junctions.index else 0
-        col.metric(f"{icon} {tbl}", cnt)
-
-    total = int(df_counts["row_count"].sum())
-    st.success(f"✅ **{len(df_counts)} tables confirmed** · **{total} total records** in `research_collaboration_db`")
-
-except Exception as e:
-    st.error(db.friendly_error(e))
-
-# ── About section ─────────────────────────────────────────────────────────────
-st.markdown("---")
-c1, c2 = st.columns(2)
-with c1:
-    st.markdown("""
-### 🗄️ Database Features
-- **13 normalized tables** (InnoDB, FK-enforced)
-- **Self-citation prevention** via BEFORE INSERT & UPDATE triggers (SQLSTATE 45000)
-- **ON DELETE SET NULL** for Conference → Paper references
-- **ON DELETE CASCADE** for Researcher / Paper → junction tables
-- **UNIQUE** constraint on `email`, `t_name`, `keyword` with friendly errors
-""")
-with c2:
-    st.markdown("""
-### 🧠 Analytical Capabilities
-- **Collaboration Discovery** — Jaccard topic overlap across author networks
-- **Publication Similarity** — Weighted Jaccard (40 % topics · 60 % keywords)
-- **Citation Graph** — Recursive CTE traversal with cycle guard
-- **Unified Search** — Cross-entity full-network search via stored procedure
-- **Project Analytics** — Shared personnel & dataset usage across projects
-""")
+    with st.expander("About ResearchNet and Database Snapshot"):
+        st.markdown(
+            "ResearchNet uses a MySQL relational database, parameterized stored "
+            "procedures and views, recursive CTEs, transactions, and integrity triggers. "
+            "Publication similarity uses the existing weighted Jaccard calculation."
+        )
+        st.markdown("#### Live database snapshot")
+        entity_tables = [
+            "RESEARCHER", "CONFERENCE", "PAPER", "TOPIC", "KEYWORD", "PROJECT", "DATASET"
+        ]
+        junction_tables = ["AUTHORS", "CITES", "HAS_TOPIC", "HAS_KEYWORD", "WORKS_ON", "USES"]
+        all_tables = entity_tables + junction_tables
+        snapshot_query = " UNION ALL ".join(
+            [
+                "SELECT 'PAPER' AS table_name, COUNT(*) AS row_count FROM PAPER p "
+                "LEFT JOIN PAPER_WORKFLOW w ON w.p_id = p.p_id "
+                "WHERE COALESCE(w.status, 'APPROVED') = 'APPROVED'"
+                if table == "PAPER"
+                else f"SELECT '{table}' AS table_name, COUNT(*) AS row_count FROM {table}"
+                for table in all_tables
+            ]
+        )
+        snapshot = db.query(snapshot_query)
+        st.dataframe(
+            snapshot.rename(columns={
+                "table_name": "Database table",
+                "row_count": "Records",
+            }),
+            width="stretch",
+            hide_index=True,
+        )
+except Exception as exc:
+    st.error(db.friendly_error(exc))

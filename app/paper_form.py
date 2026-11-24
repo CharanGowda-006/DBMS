@@ -170,6 +170,7 @@ def _render_ordered_list(prefix, kind, labels, title):
 
 def render_dynamic_entity_controls(
     prefix, researchers, topics, keywords, profile_researcher_id=None, initial=None,
+    sections=("authors", "topics", "keywords"),
 ):
     initial = initial or {}
     for kind in ("authors", "topics", "keywords"):
@@ -196,77 +197,80 @@ def render_dynamic_entity_controls(
     for item in keywords:
         keyword_name_to_id.setdefault(str(item["keyword"]).strip().lower(), int(item["key_id"]))
 
-    st.subheader("Authors in order")
-    if profile_researcher_id in researcher_labels:
-        _, selected_authors = _entries(prefix, "authors")
-        if profile_researcher_id not in selected_authors:
+    if "authors" in sections:
+        st.subheader("Authors in order")
+        if profile_researcher_id in researcher_labels:
+            _, selected_authors = _entries(prefix, "authors")
+            if profile_researcher_id not in selected_authors:
+                st.button(
+                    "Add my researcher profile as first author",
+                    key=_key(prefix, "add_profile_first"),
+                    on_click=_add_profile_first,
+                    args=(prefix, int(profile_researcher_id)),
+                )
+        st.multiselect(
+            "Select existing researchers",
+            options=list(researcher_labels),
+            format_func=lambda researcher_id: researcher_labels[researcher_id],
+            key=_key(prefix, "researcher_picker"),
+        )
+        st.button(
+            "Add selected researchers",
+            key=_key(prefix, "add_researchers"),
+            on_click=_add_selected,
+            args=(prefix, "authors"),
+        )
+        with st.expander("+ Add New Researcher"):
+            st.text_input("Researcher full name *", key=_key(prefix, "new_researcher_name"))
+            st.text_input("Email address *", key=_key(prefix, "new_researcher_email"))
+            st.text_input("Institution (optional)", key=_key(prefix, "new_researcher_institution"))
             st.button(
-                "Add my researcher profile as first author",
-                key=_key(prefix, "add_profile_first"),
-                on_click=_add_profile_first,
-                args=(prefix, int(profile_researcher_id)),
+                "Add to Authors",
+                key=_key(prefix, "add_new_researcher"),
+                on_click=_add_researcher,
+                args=(prefix, email_to_id),
             )
-    st.multiselect(
-        "Select existing researchers",
-        options=list(researcher_labels),
-        format_func=lambda researcher_id: researcher_labels[researcher_id],
-        key=_key(prefix, "researcher_picker"),
-    )
-    st.button(
-        "Add selected researchers",
-        key=_key(prefix, "add_researchers"),
-        on_click=_add_selected,
-        args=(prefix, "authors"),
-    )
-    with st.expander("+ Add New Researcher"):
-        st.text_input("Researcher full name *", key=_key(prefix, "new_researcher_name"))
-        st.text_input("Email address *", key=_key(prefix, "new_researcher_email"))
-        st.text_input("Institution (optional)", key=_key(prefix, "new_researcher_institution"))
-        st.button(
-            "Add to Authors",
-            key=_key(prefix, "add_new_researcher"),
-            on_click=_add_researcher,
-            args=(prefix, email_to_id),
-        )
-    _render_ordered_list(prefix, "authors", researcher_labels, "Ordered authors")
+        _render_ordered_list(prefix, "authors", researcher_labels, "Ordered authors")
 
-    st.subheader("Research topics")
-    st.multiselect(
-        "Select existing topics",
-        options=list(topic_labels),
-        format_func=lambda topic_id: topic_labels[topic_id],
-        key=_key(prefix, "topic_picker"),
-    )
-    st.button(
-        "Add selected topics", key=_key(prefix, "add_topics"),
-        on_click=_add_selected, args=(prefix, "topics"),
-    )
-    with st.expander("+ Add New Research Topic"):
-        st.text_input("Research topic name *", key=_key(prefix, "new_topic_name"))
-        st.button(
-            "Add to Topics", key=_key(prefix, "add_new_topic"),
-            on_click=_add_named, args=(prefix, "topics", topic_name_to_id),
+    if "topics" in sections:
+        st.subheader("Research topics")
+        st.multiselect(
+            "Select existing topics",
+            options=list(topic_labels),
+            format_func=lambda topic_id: topic_labels[topic_id],
+            key=_key(prefix, "topic_picker"),
         )
-    _render_ordered_list(prefix, "topics", topic_labels, "Selected research topics")
+        st.button(
+            "Add selected topics", key=_key(prefix, "add_topics"),
+            on_click=_add_selected, args=(prefix, "topics"),
+        )
+        with st.expander("+ Add New Research Topic"):
+            st.text_input("Research topic name *", key=_key(prefix, "new_topic_name"))
+            st.button(
+                "Add to Topics", key=_key(prefix, "add_new_topic"),
+                on_click=_add_named, args=(prefix, "topics", topic_name_to_id),
+            )
+        _render_ordered_list(prefix, "topics", topic_labels, "Selected research topics")
 
-    st.subheader("Keywords")
-    st.multiselect(
-        "Select existing keywords",
-        options=list(keyword_labels),
-        format_func=lambda keyword_id: keyword_labels[keyword_id],
-        key=_key(prefix, "keyword_picker"),
-    )
-    st.button(
-        "Add selected keywords", key=_key(prefix, "add_keywords"),
-        on_click=_add_selected, args=(prefix, "keywords"),
-    )
-    with st.expander("+ Add New Keyword"):
-        st.text_input("Keyword *", key=_key(prefix, "new_keyword_name"))
-        st.button(
-            "Add to Keywords", key=_key(prefix, "add_new_keyword"),
-            on_click=_add_named, args=(prefix, "keywords", keyword_name_to_id),
+    if "keywords" in sections:
+        st.subheader("Keywords")
+        st.multiselect(
+            "Select existing keywords",
+            options=list(keyword_labels),
+            format_func=lambda keyword_id: keyword_labels[keyword_id],
+            key=_key(prefix, "keyword_picker"),
         )
-    _render_ordered_list(prefix, "keywords", keyword_labels, "Selected keywords")
+        st.button(
+            "Add selected keywords", key=_key(prefix, "add_keywords"),
+            on_click=_add_selected, args=(prefix, "keywords"),
+        )
+        with st.expander("+ Add New Keyword"):
+            st.text_input("Keyword *", key=_key(prefix, "new_keyword_name"))
+            st.button(
+                "Add to Keywords", key=_key(prefix, "add_new_keyword"),
+                on_click=_add_named, args=(prefix, "keywords", keyword_name_to_id),
+            )
+        _render_ordered_list(prefix, "keywords", keyword_labels, "Selected keywords")
 
     notice = st.session_state.pop(_key(prefix, "notice"), None)
     if notice:

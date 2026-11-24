@@ -6,39 +6,16 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import auth
+import ui
 
 logger = logging.getLogger(__name__)
 st.set_page_config(
-    page_title="Research Collaboration Network",
+    page_title="ResearchNet",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-st.markdown(
-    """
-    <style>
-    html, body, [class*="css"] { font-family: 'Inter', 'Segoe UI', sans-serif; }
-    [data-testid="stMetric"] {
-        background: #f8faff; border: 1px solid #dde6f7;
-        border-radius: 10px; padding: 14px 18px;
-    }
-    [data-testid="stMetricLabel"] {
-        font-size: 0.75rem; color: #5a6a85;
-        text-transform: uppercase; letter-spacing: 0.05em;
-    }
-    [data-testid="stMetricValue"] { font-size: 2rem; font-weight: 700; color: #1a3a6b; }
-    h2 { color: #1a3a6b; border-bottom: 2px solid #dde6f7; padding-bottom: 6px; margin-top: 1.4rem; }
-    h3 { color: #2b5c8f; margin-top: 1rem; }
-    section[data-testid="stSidebar"] { background: #0d2b55; color: white; }
-    section[data-testid="stSidebar"] * { color: #d4e3f7 !important; }
-    section[data-testid="stSidebar"] h1,
-    section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3 { color: white !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+ui.install_styles()
 
 try:
     user = auth.get_current_user()
@@ -47,13 +24,10 @@ except Exception:
     st.error("The portal could not connect to its database. Check `.env` and apply the database migrations.")
     st.stop()
 with st.sidebar:
-    st.markdown("## 🔬 ResearchNet")
-    st.markdown("**Academic Research Collaboration & Discovery Portal**")
-    st.markdown("---")
+    st.markdown("### 🔬 ResearchNet")
     if user:
-        st.markdown(f"**{user['full_name']}**")
-        st.caption(f"Role: {user['role'].title()}")
-        if st.button("Log out", use_container_width=True):
+        st.caption(f"{user['full_name']} · {user['role'].title()}")
+        if st.button("Log out", width="stretch"):
             auth.logout_user()
             st.rerun()
 
@@ -72,7 +46,6 @@ else:
         st.Page("pages/4_Citations.py", title="Citations", icon="🔗"),
         st.Page("pages/5_Projects.py", title="Projects", icon="📁"),
     ]
-    account_pages = [st.Page("pages/0_Profile.py", title="My Profile", icon="👤")]
     if user["role"] in ("TEACHER", "ADMIN"):
         pages["Research"].extend([
             st.Page("pages/7_Add_Paper.py", title="Add Paper", icon="📄"),
@@ -85,7 +58,9 @@ else:
             st.Page("pages/10_Admin_Users.py", title="User Management", icon="🛡️"),
             st.Page("pages/11_Admin_Audit.py", title="Audit Logs", icon="📋"),
         ]
-    pages["Account"] = account_pages
+    pages["Account"] = [
+        st.Page("pages/0_Profile.py", title="My Profile", icon="👤")
+    ]
 
 navigation = st.navigation(pages)
 navigation.run()

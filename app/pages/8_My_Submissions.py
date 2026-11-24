@@ -8,35 +8,64 @@ import auth
 import db
 import workflow
 import paper_form
+import ui
 
 current_user = auth.require_role("TEACHER", "ADMIN")
 st.title("My Submissions")
+st.caption("Track publication review status and manage submissions that are editable.")
 
 try:
     submissions = workflow.list_my_submissions()
     if submissions.empty:
         st.info("You have not submitted any papers yet.")
     else:
-        display = submissions[["p_id", "p_title", "submitted_at", "status"]].rename(
-            columns={
-                "p_id": "Paper ID",
-                "p_title": "Title",
-                "submitted_at": "Submitted",
-                "status": "Status",
-            }
+        status_order = ("PENDING", "APPROVED", "REJECTED", "ARCHIVED")
+        status_metrics = st.columns(4)
+        for column, status in zip(status_metrics, status_order):
+            column.metric(
+                status.title(),
+                int((submissions["status"] == status).sum()),
+            )
+        selected_status = st.selectbox(
+            "Filter submissions",
+            options=("All statuses", *status_order),
+            key="submission_status_filter",
         )
-        st.dataframe(display, use_container_width=True, hide_index=True)
+        visible = (
+            submissions if selected_status == "All statuses"
+            else submissions[submissions["status"] == selected_status]
+        )
+        if visible.empty:
+            st.info("There are no submissions in this status.")
+        for submission in visible.itertuples():
+            with st.container(border=True):
+                title_col, status_col = st.columns([4, 1])
+                title_col.markdown(f"**{submission.p_title}**")
+                title_col.caption(
+                    f"Paper #{int(submission.p_id)} · "
+                    f"Published {submission.pub_year} · Submitted {submission.submitted_at}"
+                )
+                with status_col:
+                    ui.status_badge(submission.status)
+                remarks = getattr(submission, "rejection_remarks", None)
+                if remarks:
+                    st.warning(f"Administrator remarks: {remarks}")
 
         labels = {
             f"#{int(row.p_id)} — {row.p_title} [{row.status}]": int(row.p_id)
-            for row in submissions.itertuples()
+            for row in visible.itertuples()
         }
-        selected = st.selectbox("Select a submission", list(labels))
-        row = submissions[submissions["p_id"] == labels[selected]].iloc[0]
-        if row.get("rejection_remarks"):
-            st.warning(f"Administrator remarks: {row['rejection_remarks']}")
+        if labels:
+            selected = st.selectbox("Select a submission to manage", list(labels))
+            row = submissions[submissions["p_id"] == labels[selected]].iloc[0]
+        else:
+            row = None
 
-        if row["status"] in ("PENDING", "REJECTED") and current_user["role"] == "TEACHER":
+        if (
+            row is not None
+            and row["status"] in ("PENDING", "REJECTED")
+            and current_user["role"] == "TEACHER"
+        ):
             paper = db.query(
                 """SELECT p_title, abstract, pub_year, c_id
                    FROM PAPER WHERE p_id = %s""",
@@ -77,7 +106,6 @@ try:
                 if not profile_rows.empty and profile_rows.iloc[0]["researcher_id"] is not None
                 else None
             )
-            st.subheader("Edit eligible submission")
             edit_prefix = f"edit_paper_{int(row['p_id'])}"
             title = st.text_input(
                 "Title", value=paper["p_title"], key=f"{edit_prefix}_title"

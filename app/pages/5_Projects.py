@@ -15,6 +15,7 @@ current_user = auth.require_login()
 can_manage = current_user["role"] in ("TEACHER", "ADMIN")
 
 st.title("Research Projects & Data Assets")
+st.caption("Explore research teams, shared datasets, and project collaboration.")
 tab_labels = ["Explore Projects"]
 if can_manage:
     tab_labels.append("Manage Projects")
@@ -123,7 +124,7 @@ with explore_tab:
                             researchers[["r_name", "institution"]].rename(
                                 columns={"r_name": "Researcher", "institution": "Institution"}
                             ),
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                         )
 
@@ -147,7 +148,7 @@ with explore_tab:
                                     "Open source", display_text="Open"
                                 )
                             },
-                            use_container_width=True,
+                            width="stretch",
                             hide_index=True,
                         )
     except Exception as exc:
@@ -472,7 +473,7 @@ with collaboration_tab:
                 "shared_researcher_count": "Shared Researchers",
                 "shared_dataset_count": "Shared Datasets",
             })
-            st.dataframe(display, use_container_width=True, hide_index=True)
+            st.dataframe(display, width="stretch", hide_index=True)
 
             pair_ids = [
                 (int(pair.p1_id), int(pair.p2_id))
@@ -508,7 +509,7 @@ with collaboration_tab:
                                 "institution": "Institution",
                             }
                         ),
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                     )
             with details_right:
@@ -532,7 +533,7 @@ with collaboration_tab:
                                 "Open source", display_text="Open"
                             )
                         },
-                        use_container_width=True,
+                        width="stretch",
                         hide_index=True,
                     )
     except Exception as exc:

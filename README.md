@@ -7,6 +7,8 @@ Core analytics run in MySQL through views and stored procedures, keeping the Str
 ## Features
 
 - **Live database overview** with entity and relationship-table counts
+- **Role-aware dashboard and navigation** with live metrics, recent approved publications, and account-focused entry points
+- **Consistent Streamlit interface** across account, analytics, search, submission, and administration pages
 - **Publication analytics** by year, conference, and research topic
 - **Unified search** across papers, researchers, conferences, projects, and datasets
 - **Collaborator Discovery** with researcher-focused recommendations and an interactive collaboration network
@@ -75,6 +77,7 @@ Additive migrations add `APP_USER`, `PAPER_OWNERSHIP`, `PROJECT_OWNERSHIP`, `PAP
 ```text
 app/
   Home.py                 # Role-aware navigation entry point
+  ui.py                   # Shared theme-aware styling and UI helpers
   auth.py                 # Authentication and role checks
   db.py                   # MySQL connection and query helpers
   workflow.py             # Authorized transactional write services
@@ -220,15 +223,18 @@ Streamlit normally opens the application at `http://localhost:8501`.
 
 ### Application pages
 
-1. **Overview**: KPIs and analytics charts
-2. **Search**: cross-entity search and detailed paper inspection
-3. **Insights**: potential collaborators and publication similarity
-4. **Citations**: interactive, approved-only forward and reverse citation graph with traversal analytics and paper details
-5. **Projects**: project teams, datasets, and shared resources
-6. **Add Basic**: register core entities
-7. **Add Paper**: teacher submissions and eligible citation management
-8. **My Submissions**: edit pending/rejected papers and resubmit
-9. **Administration**: review/archive publications, manage accounts, and inspect audit logs (admins only)
+1. **Dashboard**: role-specific quick actions, live metrics, and recent approved publications
+2. **Overview**: analytics metrics and charts
+3. **Search**: cross-entity search and selected-paper inspection
+4. **Insights**: potential collaborators and publication similarity
+5. **Citations**: interactive, approved-only forward and reverse citation graph with traversal analytics and paper details
+6. **Projects**: project teams, datasets, and shared resources
+7. **Add Basic**: register core entities
+8. **Add Paper**: guided teacher submissions and eligible citation management
+9. **My Submissions**: edit pending/rejected papers and resubmit
+10. **Administration**: review/archive publications, manage accounts, and inspect audit logs (admins only)
+
+Login and registration are available before authentication; signed-in users can also view their profile.
 
 Public registration creates **STUDENT** accounts only. Administrators assign teacher roles through User Management. Teachers' papers are pending until an administrator approves them; rejected papers require remarks and can be edited and resubmitted. Existing legacy papers without workflow rows remain approved.
 

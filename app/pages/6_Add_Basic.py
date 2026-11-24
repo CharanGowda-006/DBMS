@@ -12,11 +12,7 @@ import workflow
 auth.require_role("ADMIN")
 
 st.title("Data Management: Core Entities")
-
-st.markdown("""
-Register foundational entities into the research collaboration network.
-All submissions undergo strict data validation and database constraint enforcement.
-""")
+st.caption("Register foundational research records. MySQL assigns stable identifiers and enforces constraints.")
 
 tab_res, tab_conf, tab_top, tab_key, tab_data, tab_proj = st.tabs([
     "👤 Researcher", "🏛️ Conference", "🏷️ Topic", "🔑 Keyword", "💾 Dataset", "💡 Project"
@@ -53,7 +49,7 @@ with tab_res:
     st.markdown("#### Existing Researchers")
     st.dataframe(
         db.query("SELECT r_id AS ID, r_name AS Name, email AS Email, institution AS Institution FROM RESEARCHER ORDER BY r_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 2. CONFERENCE FORM
@@ -84,7 +80,7 @@ with tab_conf:
     st.markdown("#### Existing Conferences")
     st.dataframe(
         db.query("SELECT c_id AS ID, c_name AS Name, c_year AS Year, c_location AS Location FROM CONFERENCE ORDER BY c_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 3. TOPIC FORM
@@ -107,7 +103,7 @@ with tab_top:
     st.markdown("#### Existing Topics")
     st.dataframe(
         db.query("SELECT t_id AS ID, t_name AS Topic FROM TOPIC ORDER BY t_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 4. KEYWORD FORM
@@ -130,7 +126,7 @@ with tab_key:
     st.markdown("#### Existing Keywords")
     st.dataframe(
         db.query("SELECT key_id AS ID, keyword AS Keyword FROM KEYWORD ORDER BY key_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 5. DATASET FORM
@@ -154,7 +150,7 @@ with tab_data:
     st.markdown("#### Existing Datasets")
     st.dataframe(
         db.query("SELECT dataset_id AS ID, name AS Name, source AS Source FROM DATASET ORDER BY dataset_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
 # 6. PROJECT FORM
@@ -178,5 +174,5 @@ with tab_proj:
     st.markdown("#### Existing Projects")
     st.dataframe(
         db.query("SELECT project_id AS ID, name AS Name, description AS Description FROM PROJECT ORDER BY project_id DESC"),
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
